@@ -18,6 +18,19 @@ void enqueue(task_queue_t * list, PD * task) {
     list->len++;
 }
 
+//void bufferEnq(buffer_queue * list, int * msg){
+//    if (list->len == 0) {
+//        list->head = list->tail = msg;
+//    } else {
+//        list->tail->next = msg;
+//    }
+//    list->tail = msg;
+//    msg->next = NULL;
+//    list->len++;
+//}
+
+
+
 PD * dequeue(task_queue_t * list) {
     if (list->len == 0) {
         return NULL;

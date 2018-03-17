@@ -4,9 +4,9 @@ set(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 set(CMAKE_DEPENDS_CHECK_C
-  "/Users/jiax/Documents/csc460/pro2-bak-fri/active.c" "/Users/jiax/Documents/csc460/pro2-bak-fri/cmake-build-debug/CMakeFiles/pro2_bak_fri.dir/active.c.o"
-  "/Users/jiax/Documents/csc460/pro2-bak-fri/main.c" "/Users/jiax/Documents/csc460/pro2-bak-fri/cmake-build-debug/CMakeFiles/pro2_bak_fri.dir/main.c.o"
-  "/Users/jiax/Documents/csc460/pro2-bak-fri/os.c" "/Users/jiax/Documents/csc460/pro2-bak-fri/cmake-build-debug/CMakeFiles/pro2_bak_fri.dir/os.c.o"
+  "/Users/ax/Documents/Uvic/CSC 460/Project2/Demo/gitproject2/CSC460/active.c" "/Users/ax/Documents/Uvic/CSC 460/Project2/Demo/gitproject2/CSC460/cmake-build-debug/CMakeFiles/pro2_bak_fri.dir/active.c.o"
+  "/Users/ax/Documents/Uvic/CSC 460/Project2/Demo/gitproject2/CSC460/main.c" "/Users/ax/Documents/Uvic/CSC 460/Project2/Demo/gitproject2/CSC460/cmake-build-debug/CMakeFiles/pro2_bak_fri.dir/main.c.o"
+  "/Users/ax/Documents/Uvic/CSC 460/Project2/Demo/gitproject2/CSC460/os.c" "/Users/ax/Documents/Uvic/CSC 460/Project2/Demo/gitproject2/CSC460/cmake-build-debug/CMakeFiles/pro2_bak_fri.dir/os.c.o"
   )
 set(CMAKE_C_COMPILER_ID "AppleClang")
 

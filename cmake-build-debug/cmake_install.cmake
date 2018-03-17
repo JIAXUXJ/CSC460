@@ -1,4 +1,4 @@
-# Install script for directory: /Users/jiax/Documents/csc460/pro2-bak-fri
+# Install script for directory: /Users/ax/Documents/Uvic/CSC 460/Project2/Demo/gitproject2/CSC460
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -35,5 +35,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/Users/jiax/Documents/csc460/pro2-bak-fri/cmake-build-debug/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/Users/ax/Documents/Uvic/CSC 460/Project2/Demo/gitproject2/CSC460/cmake-build-debug/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

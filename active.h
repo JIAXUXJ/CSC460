@@ -87,9 +87,16 @@ typedef struct task_queue_type {
     struct PD * tail;
 } task_queue_t;
 
+typedef struct buffer_queue_t {
+    uint8_t len;
+    int * head;
+    int * tail;
+} buffer_queue;
+
 task_queue_t system_T;
 task_queue_t periodic_T;
 task_queue_t rr_T;
+buffer_queue buffer_Q;
 
 
 
@@ -118,7 +125,8 @@ typedef enum kernel_request_type
    TERMINATE,
    SEND,
    RECEIVE,
-   REPLY
+   REPLY,
+    TIMER
 } KERNEL_REQUEST_TYPE;
 
 typedef enum priority_level{
@@ -146,8 +154,9 @@ typedef struct ProcessDescriptor
    voidfuncptr  code;   /* function to be executed as a task */
    KERNEL_REQUEST_TYPE request;
    int arg;
-   unsigned char taskType;
-   int rtnVal; /* return value from kernel request */
+//   unsigned char taskType;
+    uint8_t taskType;
+    int rtnVal; /* return value from kernel request */
    unsigned int quantum;
 
     // The remaining number of ticks for the process
@@ -162,6 +171,7 @@ typedef struct ProcessDescriptor
 
     task_queue_t      *senders;    /* queue of senders           */
     task_queue_t      *replies;    /* process waiting for reply  */
+    buffer_queue      *buffer;     /* the buffer that only receiver can access */
     struct ProcessDescriptor    *recipient; /* of my message */
 
     struct ProcessDescriptor* next;

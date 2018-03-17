@@ -14,6 +14,39 @@
  * (See file "cswitch.S" for details.)
  */
 
+void setupTimer() {
+    //Clear timer config.
+    TCCR4A = 0;
+    TCCR4B = 0;
+    //Set to CTC (mode 4)
+    TCCR4B |= (1<<WGM42);
+
+    //Set prescaller to 256
+    TCCR4B |= (1<<CS42);
+
+    //Set TOP value (0.01 seconds)
+    OCR4A = 625;
+
+    //Enable interupt A for timer 3.
+    TIMSK4 |= (1<<OCIE4A);
+
+    //Set timer to 0 (optional here).
+    TCNT4 = 0;
+
+    Enable_Interrupt();
+}
+
+ISR(TIMER4_COMPA_vect)
+{
+    num_ticks++;
+    Cp->request = TIMER;
+    Enter_Kernel();
+}
+
+void idle_task() {
+    for(;;) {};
+}
+
 extern void Enter_Kernel();
 
 #define Disable_Interrupt()   asm volatile ("cli"::)
@@ -124,6 +157,45 @@ static void Dispatch()
    NextP = (NextP + 1) % MAXTHREAD;
 }
 
+
+
+
+static void Dispatch()
+{
+    /* find the next READY task
+      * Note: if there is no READY task, then this will loop forever!.
+      */
+
+
+//TODO: Handle BLOCKED better
+    if (Cp->state != RUNNING ) {
+        if (system_T.head && peek(&system_T)->state != RECEIVEBLOCK
+                && peek(&system_T)->state != SENDBLOCK
+                && peek(&system_T)->state != REPLYBLOCK) {
+            Cp = peek(&system_T);
+        } else if (periodic_T.len > 0 && num_ticks >= peek(&periodic_T)->next_start) {
+            PD* p = peek(&periodic_T);
+            // Check for overlap with another periodic task
+            /* if (p->next != NULL && num_ticks >= p->next->next_start) { */
+            /* 	OS_Abort(-2); */
+            /* } */
+
+            Cp = p;
+        } else if (rr_T.head) {
+            while (peek(&rr_T)->state != RECEIVEBLOCK
+                   && peek(&rr_T)->state != SENDBLOCK
+                   && peek(&rr_T)->state != REPLYBLOCK) {
+                enqueue(&rr_T, dequeue(&rr_T));
+            }
+            Cp = peek(&rr_T);
+        }
+    }
+
+    CurrentSp = Cp->sp;
+    Cp->state = RUNNING;
+}
+
+
 /**
   * This internal kernel function is the "main" driving loop of this full-served
   * model architecture. Basically, on OS_Start(), the kernel repeatedly
@@ -149,20 +221,80 @@ static void Next_Kernel_Request()
        Cp->sp = CurrentSp;
 
        switch(Cp->request){
-       case CREATE:
-           Kernel_Create_Task( Cp->code );
-           break;
+
+//       case CREATE:
+//           Kernel_Create_Task( Cp->code );
+//           break;
+
        case NEXT:
+
+           switch (Cp->taskType) {
+               case SYSTEM:
+                   enqueue(&system_T, dequeue(&system_T));
+                   break;
+               case PERIODIC:
+                   dequeue(&periodic_T);
+                   Cp->next_start = Cp->next_start + Cp->period;
+                   Cp->ticks_remaining = Cp->wcet;
+                   Enqueue_periodic_offset(&periodic_T, (PD *) Cp);
+
+                   break;
+               case RR:
+                   Cp->ticks_remaining = 1;
+                   enqueue(&rr_T, dequeue(&rr_T));
+                   break;
+           }
+               if (Cp->state != RECEIVEBLOCK && Cp->state != SENDBLOCK && Cp->state != REPLYBLOCK) Cp->state = READY;
+               Dispatch();
+               break;
+
+
        case NONE:
            /* NONE could be caused by a timer interrupt */
-          Cp->state = READY;
-          Dispatch();
-          break;
+           if (Cp->state != RECEIVEBLOCK && Cp->state != SENDBLOCK && Cp->state != REPLYBLOCK) Cp->state = READY;
+               Dispatch();
+               break;
+
+       case TIMER:
+           switch (Cp->taskType) {
+               case SYSTEM: // drop down
+                   break;
+               case PERIODIC: // drop down
+                   Cp->ticks_remaining--;
+                   if (Cp->ticks_remaining <= 0) {
+                       OS_Abort(-1);
+                   }
+                   break;
+               case RR:
+                   Cp->ticks_remaining--;
+                   if (Cp->ticks_remaining <= 0) {
+                       // Reset ticks and move to back
+                       Cp->ticks_remaining = 1;
+                       enqueue(&rr_T, dequeue(&rr_T));
+                   }
+                   break;
+           }
+               if (Cp->state != RECEIVEBLOCK && Cp->state != SENDBLOCK && Cp->state != REPLYBLOCK) Cp->state = READY;
+               Dispatch();
+               break;
+
        case TERMINATE:
-          /* deallocate all resources used by this task */
-          Cp->state = DEAD;
-          Dispatch();
-          break;
+           /* deallocate all resources used by this task */
+           switch (Cp->taskType) {
+               case SYSTEM:
+                   dequeue(&system_T);
+                   break;
+               case PERIODIC:
+                   dequeue(&periodic_T);
+                   break;
+               case RR:
+                   dequeue(&rr_T);
+                   break;
+           }
+               Cp->state = DEAD;
+               Dispatch();
+               break;
+
        default:
           /* Houston! we have a problem here! */
           break;
@@ -180,38 +312,43 @@ static void Next_Kernel_Request()
   * This function initializes the RTOS and must be called before any other
   * system calls.
   */
-void OS_Init() 
+
+
+void OS_Init()
 {
-   int x;
+    Tasks = 0;
+    KernelActive = FALSE;
+    //Reminder: Clear the memory for the task on creation.
+    int x;
+    for (x = 0; x < MAXTHREAD +1; x++) {
+        memset(&(Process[x]),0,sizeof(PD));
+        Process[x].state = DEAD;
+    }
 
-   Tasks = 0;
-   KernelActive = 0;
-   NextP = 0;
-  //Reminder: Clear the memory for the task on creation.
-   for (x = 0; x < MAXTHREAD; x++) {
-      memset(&(Process[x]),0,sizeof(PD));
-      Process[x].state = DEAD;
-       //TODO initial PID
-
-   }
-
+    queue_init(&system_T);
+    queue_init(&periodic_T);
+    queue_init(&rr_T);
 }
 
 
 /**
   * This function starts the RTOS after creating a few tasks.
   */
-void OS_Start() 
-{   
-   if ( (! KernelActive) && (Tasks > 0)) {
-       Disable_Interrupt();
-      /* we may have to initialize the interrupt vector for Enter_Kernel() here. */
 
-      /* here we go...  */
-      KernelActive = 1;
-      Next_Kernel_Request();
-      /* NEVER RETURNS!!! */
-   }
+
+void OS_Start()
+{
+    if ( (! KernelActive) && (Tasks > 0)) {
+        /* we may have to initialize the interrupt vector for Enter_Kernel() here. */
+
+        /* here we go...  */
+        KernelActive = TRUE;
+        setupTimer();
+        for (;;) {
+            Next_Kernel_Request();
+        }
+        /* NEVER RETURNS!!! */
+    }
 }
 
 

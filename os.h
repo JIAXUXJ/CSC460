@@ -18,7 +18,11 @@ typedef unsigned int PID;        // always non-zero if it is valid
 typedef unsigned int TICK;       // 1 TICK is defined by MSECPERTICK
 typedef unsigned int BOOL;       // TRUE or FALSE
 typedef unsigned char MTYPE;
-typedef unsigned char MASK; 
+typedef unsigned char MASK;
+
+//Andrew added
+volatile unsigned int num_ticks = 0;
+
 
 // Aborts the RTOS and enters a "non-executing" state with an error code. That is, all tasks
 // will be stopped.
