@@ -1,0 +1,1 @@
+/Library/Developer/CommandLineTools/usr/bin/cc -g -Wl,-search_paths_first -Wl,-headerpad_max_install_names  CMakeFiles/pro2_bak_fri.dir/active.c.o CMakeFiles/pro2_bak_fri.dir/main.c.o CMakeFiles/pro2_bak_fri.dir/os.c.o  -o pro2_bak_fri 

@@ -3,6 +3,7 @@
 #include <avr/delay.h>
 #include <time.h>
 #include <avr/interrupt.h>
+#include "os.h"
 /**
  * \file active.c
  * \brief A Skeleton Implementation of an RTOS
@@ -133,7 +134,7 @@ typedef enum priority_level{
 typedef struct MessageDescriptor{
     unsigned char m_type;
     unsigned int m_val;
-    unsigned int m_rpy;
+    unsigned int m_rpy; // 0:PUT, 1:GET
     PID m_id;
 }MESSAGE;
 
@@ -159,12 +160,12 @@ typedef struct ProcessDescriptor
     uint32_t wcet;
     // A pointer to the next item in the linked list (or NULL if none)
 
-    struct task_queue_t      *senders;    /* queue of senders           */
-    struct task_queue_t      *replies;    /* process waiting for reply  */
+    task_queue_t      *senders;    /* queue of senders           */
+    task_queue_t      *replies;    /* process waiting for reply  */
     struct ProcessDescriptor    *recipient; /* of my message */
 
     struct ProcessDescriptor* next;
-    struct MESSAGE * message;
+    MESSAGE * message;
 
 } PD;
 
@@ -208,10 +209,10 @@ volatile static unsigned int NextP;
 volatile static unsigned int KernelActive;  
 
 /** number of tasks created so far */
-volatile static unsigned int Tasks; 
+volatile static unsigned int Tasks;
 
-void Kernel_Create_Task_At( PD *p, voidfuncptr f );
-static void Kernel_Create_Task( voidfuncptr f );
+void Kernel_Create_Task_At( PD *p, voidfuncptr f , int arg, PRIORITY_LEVELS ttype);
+PD * Kernel_Create_Task( voidfuncptr f, int arg, PRIORITY_LEVELS ttype);
 static void Dispatch();
 static void Next_Kernel_Request();
 void OS_Init();
