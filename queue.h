@@ -1,6 +1,5 @@
 #include "os.h"
 #include <stdint.h>
-#include "common.h"
 
 void queue_init(task_queue_t * list) {
     list->head = list->tail = NULL;
@@ -18,7 +17,7 @@ void enqueue(task_queue_t * list, PD * task) {
     list->len++;
 }
 
-PD * deque(task_queue_t * list) {
+PD * dequeue(task_queue_t * list) {
     if (list->len == 0) {
         return NULL;
     } else if (list->len == 1) {

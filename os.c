@@ -4,6 +4,7 @@
 #include <time.h>
 #include <avr/interrupt.h>
 #include "active.h"
+#include "queue.h"
 
 void setup_Timer(){
   //set up timer with prescaler = 64 and CTC mode
@@ -100,7 +101,7 @@ struct PD *ProcessOf(PID id)
 
 void Msg_Send( PID  id, MTYPE t, unsigned int *v ){
 
-    struct PD *receiver;
+    PD *receiver;
     receiver = ProcessOf(id);
 
     if(receiver==NULL)return;
@@ -123,7 +124,7 @@ void Msg_Send( PID  id, MTYPE t, unsigned int *v ){
 
 
 PID  Msg_Recv( MASK m, unsigned int *v ){
-    struct ProcessDescriptor *firstSender;
+    PD *firstSender;
     firstSender = dequeue(&(Cp->senders));
     if(firstSender == NULL){
         Cp->state = RECEIVEBLOCK;
@@ -136,7 +137,7 @@ PID  Msg_Recv( MASK m, unsigned int *v ){
 
     if((m & firstSender->message->m_type)!=0){
         if(m=="GET"){
-            deque(buffer_Q);
+            dequeue(buffer_Q);
 
             reply(id, Cp->message->m_val);
         }else if(m=="PUT"){
@@ -155,7 +156,7 @@ PID  Msg_Recv( MASK m, unsigned int *v ){
 
 //TODO
 void Msg_Rply( PID  id, unsigned int r ){
-    struct PD *sender;
+    PD *sender;
     sender = ProcessOf(id);
     if(sender == NULL || sender->state != REPLYBLOCK){
         return;
@@ -163,9 +164,5 @@ void Msg_Rply( PID  id, unsigned int r ){
 
 }
 
-
-//PID   Task_Create_Period(void (*f)(void), int arg, TICK period, TICK wcet, TICK offset){
-//
-//}
 
 
