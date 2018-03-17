@@ -5,6 +5,7 @@
 #include <avr/interrupt.h>
 #include "active.h"
 #include "avr_console.h"
+#include "os.h"
 
 
 /**
@@ -41,6 +42,11 @@ ISR(TIMER1_COMPA_vect)
     //PORTC ^= (1 << DDC6);
     Task_Next();
     PORTB &= ~(1 << PORTB4);
+}
+
+void queue_init(task_queue_t * list) {
+    list->head = list->tail = NULL;
+    list->len = 0;
 }
 
 void Kernel_Create_Task_At( PD *p, voidfuncptr f )
@@ -106,10 +112,10 @@ static void Kernel_Create_Task( voidfuncptr f )
 {
     int x;
 
-    if (Tasks == MAXPROCESS) return;  /* Too many task! */
+    if (Tasks == MAXTHREAD) return;  /* Too many task! */
 
     /* find a DEAD PD that we can use  */
-    for (x = 0; x < MAXPROCESS; x++) {
+    for (x = 0; x < MAXTHREAD; x++) {
         if (Process[x].state == DEAD) break;
     }
 
@@ -129,14 +135,14 @@ static void Dispatch()
       * Note: if there is no READY task, then this will loop forever!.
       */
     while(Process[NextP].state != READY) {
-        NextP = (NextP + 1) % MAXPROCESS;
+        NextP = (NextP + 1) % MAXTHREAD;
     }
 
     Cp = &(Process[NextP]);
     CurrentSp = Cp->sp;
     Cp->state = RUNNING;
 
-    NextP = (NextP + 1) % MAXPROCESS;
+    NextP = (NextP + 1) % MAXTHREAD;
 }
 
 /**
@@ -203,10 +209,13 @@ void OS_Init()
     KernelActive = 0;
     NextP = 0;
     //Reminder: Clear the memory for the task on creation.
-    for (x = 0; x < MAXPROCESS; x++) {
+    for (x = 0; x < MAXTHREAD; x++) {
         memset(&(Process[x]),0,sizeof(PD));
         Process[x].state = DEAD;
     }
+    queue_init(&system_T);
+    queue_init(&periodic_T);
+    queue_init(&rr_T);
 }
 
 

@@ -1,5 +1,6 @@
 #include <string.h>
 #include <avr/interrupt.h>
+#include "os.h"
 /**
  * \file active.c
  * \brief A Skeleton Implementation of an RTOS
@@ -32,7 +33,7 @@
 typedef void (*voidfuncptr) (void);      /* pointer to void f(void) */
 
 #define WORKSPACE     256
-#define MAXPROCESS   4
+//#define MAXPROCESS   4
 
 
 /*===========
@@ -76,6 +77,22 @@ extern void Enter_Kernel();
 #define Disable_Interrupt()		asm volatile ("cli"::)
 #define Enable_Interrupt()		asm volatile ("sei"::)
 
+typedef struct task_queue_type {
+    uint8_t len;
+    struct PD * head;
+    struct PD * tail;
+} task_queue_t;
+
+typedef struct buffer_queue_t {
+    uint8_t len;
+    int * head;
+    int * tail;
+} buffer_queue;
+
+task_queue_t system_T;
+task_queue_t periodic_T;
+task_queue_t rr_T;
+buffer_queue buffer_Q;
 
 /**
   *  This is the set of states that a task can be in at any given time.
@@ -116,7 +133,7 @@ typedef struct ProcessDescriptor
   * This table contains ALL process descriptors. It doesn't matter what
   * state a task is in.
   */
-static PD Process[MAXPROCESS];
+static PD Process[MAXTHREAD];
 
 /**
   * The process descriptor of the currently RUNNING task.
@@ -155,3 +172,15 @@ volatile static unsigned int Tasks;
  * can just restore its execution context on its stack.
  * (See file "cswitch.S" for details.)
  */
+void queue_init(task_queue_t * list);
+//void Kernel_Create_Task_At( PD *p, voidfuncptr f , int arg, PRIORITY_LEVELS ttype);
+//PD * Kernel_Create_Task( voidfuncptr f, int arg, PRIORITY_LEVELS ttype);
+static void Dispatch();
+static void Next_Kernel_Request();
+void OS_Init();
+void OS_Start();
+void Task_Create( voidfuncptr f);
+void Task_Next();
+void Task_Terminate();
+void Ping();
+void Pong();
