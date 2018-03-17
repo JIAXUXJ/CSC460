@@ -1,5 +1,6 @@
 #include "os.h"
 #include <stdint.h>
+#include "active.h"
 
 void queue_init(task_queue_t * list) {
     list->head = list->tail = NULL;

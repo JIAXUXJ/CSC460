@@ -38,14 +38,14 @@ PID   Task_Create_System(void (*f)(void), int arg){
        unsigned char ttype;
        ttype = "SYSTEM";
       PD *P = Kernel_Create_Task( f , arg, SYSTEM);
-       enqueue(&system_tasks, p);
-       return p->rtnVal;
+       enqueue(&system_T, P);
+       return P->rtnVal;
    }
 }
 
 
 PID Task_Create_RR(voidfuncptr f, int arg) {
-    PD * p = Kernel_Create_Task(f, RR);
+    PD * p = Kernel_Create_Task(f, arg, RR);
     if (p == NULL) return 0;
     p->arg = arg;
     enqueue(&rr_T, p);
@@ -54,7 +54,7 @@ PID Task_Create_RR(voidfuncptr f, int arg) {
 
 
 PID Task_Create_Period(voidfuncptr f, int arg, TICK period, TICK wcet, TICK offset){
-    PD * p = Kernel_Create_Task(f, PERIODIC);
+    PD * p = Kernel_Create_Task(f, arg, PERIODIC);
     if (p == NULL) return 0;
     p->arg = arg;
 
@@ -123,43 +123,47 @@ void Msg_Send( PID  id, MTYPE t, unsigned int *v ){
 }
 
 
-PID  Msg_Recv( MASK m, unsigned int *v ){
-    PD *firstSender;
-    firstSender = dequeue(&(Cp->senders));
-    if(firstSender == NULL){
-        Cp->state = RECEIVEBLOCK;
-        Dispatch();
-        return;
-    }
-
-    Cp->message->m_id = firstSender->rtnVal;
-    Cp->message->m_val = *v;
-
-    if((m & firstSender->message->m_type)!=0){
-        if(m=="GET"){
-            dequeue(buffer_Q);
-
-            reply(id, Cp->message->m_val);
-        }else if(m=="PUT"){
-            deposit(Cp->message->m_val, buffer);
-
-            enqueue(buffer_Q, *v);
-            reply(id, NULL);
-        }else{
-            return;
-        }
-    }else{
-        return;
-}
+//PID  Msg_Recv( MASK m, unsigned int *v ){
+//    PD *firstSender;
+//    firstSender = dequeue(&(Cp->senders));
+//    if(firstSender == NULL){
+//        Cp->state = RECEIVEBLOCK;
+//        Dispatch();
+//        return;
+//    }
+//
+//    Cp->message->m_id = firstSender->rtnVal;
+//    Cp->message->m_val = *v;
+//
+//    if((m & firstSender->message->m_type)!=0){
+//        if(m=="GET"){
+//            dequeue(buffer_Q);
+//
+//            reply(id, Cp->message->m_val);
+//        }else if(m=="PUT"){
+//            deposit(Cp->message->m_val, buffer);
+//
+//            enqueue(buffer_Q, *v);
+//            reply(id, NULL);
+//        }else{
+//            return;
+//        }
+//    }else{
+//        return;
+//}
 
 
 
 //TODO
-void Msg_Rply( PID  id, unsigned int r ){
+void Msg_Rply( PID  id, unsigned int r){
     PD *sender;
     sender = ProcessOf(id);
     if(sender == NULL || sender->state != REPLYBLOCK){
         return;
+    }
+    dequeue(sender);
+    if(r == 0){
+        Msg_Send
     }
 
 }

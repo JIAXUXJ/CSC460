@@ -134,7 +134,7 @@ typedef enum priority_level{
 typedef struct MessageDescriptor{
     unsigned char m_type;
     unsigned int m_val;
-    unsigned int m_rpy;
+    unsigned int m_rpy; // 0:PUT, 1:GET
     PID m_id;
 }MESSAGE;
 
