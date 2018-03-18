@@ -6,6 +6,9 @@
 #include "active.h"
 #include "avr_console.h"
 #include "os.h"
+#include "basic_test.h"
+
+extern void a_main();
 
 
 /**
@@ -44,35 +47,128 @@ ISR(TIMER1_COMPA_vect)
     PORTB &= ~(1 << PORTB4);
 }
 
+void enqueue(task_queue_t * list, PD * task) {
+
+    if (list->len == 0) {
+        printf("hello\n");
+        printf("length is %02x\n" + (list->len)&0xFF);
+        list->head = list->tail = task;
+        printf("length is %u\n" + list->len);
+        printf("got here enqueue2\n");
+    } else {
+        printf(list->len);
+        printf("got here enqueue1\n");
+        PD * temp;
+        temp = list->tail;
+        temp->next = task;
+        list->tail = temp;
+    }
+    list->tail = task;
+    task->next = NULL;
+    printf(list);
+    printf("got here enqueue3\n");
+    list->len++;
+    printf(list->len);
+}
+PD * dequeue(task_queue_t * list) {
+    if (list->len == 0) {
+        return NULL;
+    } else if (list->len == 1) {
+        PD * p = list->head;
+        list->head = list->tail = NULL;
+        list->len = 0;
+        return p;
+    } else {
+        PD * p = list->head;
+        list->head = p->next;
+        list->len--;
+        return p;
+    }
+}
+void Enqueue_periodic_offset(task_queue_t * list, PD * task) {
+    if (list->len == 0) {
+        list->head = list->tail = task;
+    } else {
+        PD * p = list->head;
+        PD * p_prev = NULL;
+        while (p != NULL && p->next_start < task->next_start) {
+            p_prev = p;
+            p = p->next;
+        }
+
+        if (p_prev == NULL) {
+            // Insert as first element in list
+            list->head = task;
+            task->next = p;
+        } else if (p == NULL) {
+            // Insert as last element in list
+            list->tail = task;
+            p_prev->next = task;
+            task->next = NULL;
+        } else {
+            // Somewhere in the middle, insert between p_prev and p
+            p_prev->next = task;
+            task->next = p;
+        }
+    }
+    list->len++;
+}
+
+PD * peek(task_queue_t * list) {
+    return list->head;
+}
+
 void queue_init(task_queue_t * list) {
     list->head = list->tail = NULL;
     list->len = 0;
 }
+PID   Task_Create_System(void (*f)(void), int arg){
+    if (KernelActive ) {
+        Disable_Interrupt();
+        Cp ->request = CREATE;
+        Cp->code = f;
+        Cp->arg = arg;
+        Cp->taskType = SYSTEM;
+        Enter_Kernel();
+        return Cp->rtnVal;
+    } else {
+        printf("create a task here\n");
+        /* call the RTOS function directly */
+        PD *P = Kernel_Create_Task( f , arg, SYSTEM);
+        enqueue(&system_T, P);
+        return P->rtnVal;
+    }
+}
+PID Task_Create_RR(voidfuncptr f, int arg) {
+    PD * p = Kernel_Create_Task(f, arg, RR);
+    if (p == NULL) return 0;
+    p->arg = arg;
+    enqueue(&rr_T, p);
+    return p->rtnVal;
+}
+PID Task_Create_Period(voidfuncptr f, int arg, TICK period, TICK wcet, TICK offset){
+    PD * p = Kernel_Create_Task(f, arg, PERIODIC);
+    if (p == NULL) return 0;
+    p->arg = arg;
 
-void Kernel_Create_Task_At( PD *p, voidfuncptr f )
+    p->period = period;
+    p->wcet = wcet;
+    p->next_start = num_ticks + offset;
+    p->ticks_remaining = wcet;
+
+    Enqueue_periodic_offset(&periodic_T, p);
+
+    return p->rtnVal;
+}
+void Kernel_Create_Task_At( PD *p, voidfuncptr f , int arg, PRIORITY_LEVELS ttype, int x)
 {
     unsigned char *sp;
-
-// #ifdef DEBUG
-//    int counter = 0;
-// #endif
 
     //Changed -2 to -1 to fix off by one error.
     sp = (unsigned char *) &(p->workSpace[WORKSPACE-1]);
 
     /*----BEGIN of NEW CODE----*/
-    //Initialize the workspace (i.e., stack) and PD here!
-
-    //Clear the contents of the workspace
     memset(&(p->workSpace),0,WORKSPACE);
-
-    //Notice that we are placing the address (16-bit) of the functions
-    //onto the stack in reverse byte order (least significant first, followed
-    //by most significant).  This is because the "return" assembly instructions
-    //(rtn and rti) pop addresses off in BIG ENDIAN (most sig. first, least sig.
-    //second), even though the AT90 is LITTLE ENDIAN machine.
-
-    //Store terminate at the bottom of stack to protect against stack underrun.
     *(unsigned char *)sp-- = ((unsigned int)Task_Terminate) & 0xff;
     *(unsigned char *)sp-- = (((unsigned int)Task_Terminate) >> 8) & 0xff;
     *(unsigned char *)sp-- = 0x00;
@@ -82,22 +178,18 @@ void Kernel_Create_Task_At( PD *p, voidfuncptr f )
     *(unsigned char *)sp-- = (((unsigned int)f) >> 8) & 0xff;
     *(unsigned char *)sp-- = 0x00;
 
-// #ifdef DEBUG
-//    //Fill stack with initial values for development debugging
-//    //Registers 0 -> 31 and the status register
-//    for (counter = 0; counter < 33; counter++)
-//    {
-//       *(unsigned char *)sp-- = counter;
-//    }
-// #else
     //Place stack pointer at top of stack
     sp = sp - 34;
 // #endif
 
-    p->sp = sp;		/* stack pointer into the "workSpace" */
-    p->code = f;		/* function to be executed as a task */
+    p->sp = sp;   /* stack pointer into the "workSpace" */
+    p->code = f;    /* function to be executed as a task */
     p->request = NONE;
-
+    p->arg = arg;
+    p->taskType = ttype;
+//    p->rtnVal = 0;
+    p->rtnVal = x+1;
+    p->ticks_remaining = 0;
     /*----END of NEW CODE----*/
 
     p->state = READY;
@@ -108,11 +200,11 @@ void Kernel_Create_Task_At( PD *p, voidfuncptr f )
 /**
   *  Create a new task
   */
-static void Kernel_Create_Task( voidfuncptr f )
+PD * Kernel_Create_Task( voidfuncptr f, int arg, PRIORITY_LEVELS ttype)
 {
     int x;
 
-    if (Tasks == MAXTHREAD) return;  /* Too many task! */
+    if (Tasks == MAXTHREAD) return NULL;  /* Too many task! */
 
     /* find a DEAD PD that we can use  */
     for (x = 0; x < MAXTHREAD; x++) {
@@ -120,7 +212,10 @@ static void Kernel_Create_Task( voidfuncptr f )
     }
 
     ++Tasks;
-    Kernel_Create_Task_At( &(Process[x]), f );
+    Kernel_Create_Task_At( &(Process[x]), f,  arg, ttype, x);
+
+    PD *p = &(Process[x]);
+    return p;
 
 }
 
@@ -170,20 +265,80 @@ static void Next_Kernel_Request()
         Cp->sp = CurrentSp;
 
         switch(Cp->request){
-            case CREATE:
-                Kernel_Create_Task( Cp->code );
-                break;
+
+//       case CREATE:
+//           Kernel_Create_Task( Cp->code );
+//           break;
+
             case NEXT:
-            case NONE:
-                /* NONE could be caused by a timer interrupt */
-                Cp->state = READY;
+
+                switch (Cp->taskType) {
+                    case SYSTEM:
+                        enqueue(&system_T, dequeue(&system_T));
+                        break;
+                    case PERIODIC:
+                        dequeue(&periodic_T);
+                        Cp->next_start = Cp->next_start + Cp->period;
+                        Cp->ticks_remaining = Cp->wcet;
+                        Enqueue_periodic_offset(&periodic_T, (PD *) Cp);
+
+                        break;
+                    case RR:
+                        Cp->ticks_remaining = 1;
+                        enqueue(&rr_T, dequeue(&rr_T));
+                        break;
+                }
+                if (Cp->state != RECEIVEBLOCK && Cp->state != SENDBLOCK && Cp->state != REPLYBLOCK) Cp->state = READY;
                 Dispatch();
                 break;
+
+
+            case NONE:
+                /* NONE could be caused by a timer interrupt */
+                if (Cp->state != RECEIVEBLOCK && Cp->state != SENDBLOCK && Cp->state != REPLYBLOCK) Cp->state = READY;
+                Dispatch();
+                break;
+
+            case TIMER:
+                switch (Cp->taskType) {
+                    case SYSTEM: // drop down
+                        break;
+                    case PERIODIC: // drop down
+                        Cp->ticks_remaining--;
+                        if (Cp->ticks_remaining <= 0) {
+                            OS_Abort(-1);
+                        }
+                        break;
+                    case RR:
+                        Cp->ticks_remaining--;
+                        if (Cp->ticks_remaining <= 0) {
+                            // Reset ticks and move to back
+                            Cp->ticks_remaining = 1;
+                            enqueue(&rr_T, dequeue(&rr_T));
+                        }
+                        break;
+                }
+                if (Cp->state != RECEIVEBLOCK && Cp->state != SENDBLOCK && Cp->state != REPLYBLOCK) Cp->state = READY;
+                Dispatch();
+                break;
+
             case TERMINATE:
                 /* deallocate all resources used by this task */
+                switch (Cp->taskType) {
+                    case SYSTEM:
+                        dequeue(&system_T);
+                        break;
+                    case PERIODIC:
+                        dequeue(&periodic_T);
+                        break;
+                    case RR:
+                        dequeue(&rr_T);
+                        break;
+                }
                 Cp->state = DEAD;
                 Dispatch();
                 break;
+
             default:
                 /* Houston! we have a problem here! */
                 break;
@@ -230,7 +385,7 @@ void OS_Start()
 
         /* here we go...  */
         KernelActive = 1;
-        Next_Kernel_Request();
+//        Next_Kernel_Request();
         /* NEVER RETURNS!!! */
     }
 }
@@ -241,18 +396,6 @@ void OS_Start()
   * each task gives up its share of the processor voluntarily by calling
   * Task_Next().
   */
-void Task_Create( voidfuncptr f)
-{
-    if (KernelActive ) {
-        Disable_Interrupt();
-        Cp ->request = CREATE;
-        Cp->code = f;
-        Enter_Kernel();
-    } else {
-        /* call the RTOS function directly */
-        Kernel_Create_Task( f );
-    }
-}
 
 /**
   * The calling task gives up its share of the processor voluntarily.
@@ -280,47 +423,6 @@ void Task_Terminate()
     }
 }
 
-/*============
-  * A Simple Test 
-  *============
-  */
-
-/**
-  * A cooperative "Ping" task.
-  * Added testing code for LEDs.
-  */
-void Ping()
-{
-    for(;;){
-        PORTB &= ~(1 << PORTB6);
-        _delay_ms(1000);
-        PORTB |= 1 << PORTB6;
-        Task_Next();
-    }
-
-}
-
-
-/**
-  * A cooperative "Pong" task.
-  * Added testing code for LEDs.
-  */
-void Pong()
-{
-    for(;;) {
-        printf(">>>>>>>>>>>>>>>>>>>Hello World>>>>>>>>>>>>>>>>>>>>>>>>>");
-        PORTB &= ~(1 << PORTB7);
-        _delay_ms(1000);
-        PORTB |= 1 << PORTB7;
-        Task_Next();
-    }
-}
-
-
-/**
-  * This function creates two cooperative tasks, "Ping" and "Pong". Both
-  * will run forever.
-  */
 void main()
 {
     uart_init();
@@ -328,10 +430,8 @@ void main()
     stdin = &uart_input;
     DDRB |= 1 << DDB6;
     DDRB |= 1 << DDB7;
-//    setup_Timer();
     OS_Init();
-    Task_Create( Pong );
-    Task_Create( Ping );
+    Task_Create_System(a_main, 0);
     OS_Start();
 }
 

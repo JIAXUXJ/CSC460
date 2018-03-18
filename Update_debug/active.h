@@ -1,3 +1,5 @@
+#ifndef _ACTIVE_
+#define _ACTIVE_
 #include <string.h>
 #include <avr/interrupt.h>
 #include "os.h"
@@ -92,7 +94,7 @@ typedef struct buffer_queue_t {
 task_queue_t system_T;
 task_queue_t periodic_T;
 task_queue_t rr_T;
-buffer_queue buffer_Q;
+//buffer_queue buffer_Q;
 
 /**
   *  This is the set of states that a task can be in at any given time.
@@ -101,9 +103,17 @@ typedef enum process_states
 {
     DEAD = 0,
     READY,
-    RUNNING
+    RUNNING,
+    DELAY,
+    SENDBLOCK,
+    REPLYBLOCK,
+    RECEIVEBLOCK
 } PROCESS_STATES;
-
+typedef enum priority_level{
+    SYSTEM = 0,
+    PERIODIC,
+    RR
+} PRIORITY_LEVELS;
 /**
   * This is the set of kernel requests, i.e., a request code for each system call.
   */
@@ -112,7 +122,11 @@ typedef enum kernel_request_type
     NONE = 0,
     CREATE,
     NEXT,
-    TERMINATE
+    TERMINATE,
+    SEND,
+    RECEIVE,
+    REPLY,
+    TIMER
 } KERNEL_REQUEST_TYPE;
 
 /**
@@ -120,6 +134,12 @@ typedef enum kernel_request_type
   * relevant information about this task. For convenience, we also store
   * the task's stack, i.e., its workspace, in here.
   */
+typedef struct MessageDescriptor{
+    unsigned char m_type;
+    unsigned int m_val;
+    unsigned int m_rpy; // 0:PUT, 1:GET
+    PID m_id;
+}MESSAGE;
 typedef struct ProcessDescriptor
 {
     unsigned char *sp;   /* stack pointer into the "workSpace" */
@@ -127,6 +147,29 @@ typedef struct ProcessDescriptor
     PROCESS_STATES state;
     voidfuncptr  code;   /* function to be executed as a task */
     KERNEL_REQUEST_TYPE request;
+    int arg;
+//   unsigned char taskType;
+    uint8_t taskType;
+    int rtnVal; /* return value from kernel request */
+    unsigned int quantum;
+
+    // The remaining number of ticks for the process
+    uint8_t ticks_remaining;
+    // The next tick number when to run
+    uint32_t next_start;
+    // The period of the process (in ticks) (only used for PERIODIC task)
+    uint32_t period;
+    // The worst case execution time of the process (in ticks) (only used for PERIODIC task)
+    uint32_t wcet;
+    // A pointer to the next item in the linked list (or NULL if none)
+
+    task_queue_t      *senders;    /* queue of senders           */
+    task_queue_t      *replies;    /* process waiting for reply  */
+    buffer_queue      *buffer;     /* the buffer that only receiver can access */
+    struct ProcessDescriptor    *recipient; /* of my message */
+    // A pointer to the next item in the linked list (or NULL if none)
+    struct ProcessDescriptor* next;
+    MESSAGE * message;
 } PD;
 
 /**
@@ -172,15 +215,18 @@ volatile static unsigned int Tasks;
  * can just restore its execution context on its stack.
  * (See file "cswitch.S" for details.)
  */
-void queue_init(task_queue_t * list);
-//void Kernel_Create_Task_At( PD *p, voidfuncptr f , int arg, PRIORITY_LEVELS ttype);
-//PD * Kernel_Create_Task( voidfuncptr f, int arg, PRIORITY_LEVELS ttype);
+void Kernel_Create_Task_At( PD *p, voidfuncptr f , int arg, PRIORITY_LEVELS ttype, int x);
+PD * Kernel_Create_Task( voidfuncptr f, int arg, PRIORITY_LEVELS ttype);
 static void Dispatch();
 static void Next_Kernel_Request();
 void OS_Init();
 void OS_Start();
-void Task_Create( voidfuncptr f);
 void Task_Next();
 void Task_Terminate();
-void Ping();
-void Pong();
+void enqueue(task_queue_t * list, PD * task);
+void queue_init(task_queue_t * list);
+PD * dequeue(task_queue_t * list);
+void Enqueue_periodic_offset(task_queue_t * list, PD * task);
+PD * peek(task_queue_t * list);
+
+#endif
